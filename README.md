@@ -193,6 +193,7 @@ Edit `.env` to configure the server. For Telegram, set `TELEGRAM_ENABLED=true` a
 | `CURSOR_BRIDGE_TOKEN` | -- | Enables token-protected `cursor-agent` HTTP bridge endpoints |
 | `CURSOR_AGENT_BIN` | `cursor-agent` | CLI binary used by the HTTP bridge |
 | `CURSOR_AGENT_BASE_ARGS` | `--model auto --trust` | Base args prepended to every bridge run |
+| `CURSOR_AGENT_ASYNC_TIMEOUT_MS` | `3600000` | Async bridge job timeout |
 | `LICENSE_KEY` | -- | License key via env (overrides file) |
 | `DATA_DIR` | `./data` | Data directory for persistent state |
 | `LOG_FORMAT` | `text` | Set to `json` for structured log lines |
@@ -208,6 +209,10 @@ curl "$BASE/execute?token=$TOKEN&cmd=-p%20%22Reply%20with%20READY%22"
 curl "$BASE/execute_async?token=$TOKEN&cmd=-p%20%22Long%20task%22"
 curl "$BASE/jobs?token=$TOKEN"
 ```
+
+Use `/execute` for short synchronous runs. Use `/execute_async` for longer work; it returns a job id and status URL. Poll `/jobs/j-XXXXXXXX?token=$TOKEN` to get `queued`, `running`, `done`, `error`, `timeout`, or `cancelled` plus accumulated stdout/stderr and offsets. For incremental polling, pass `since=<stdout byte offset>` and reuse the returned `stdout_offset`.
+
+Recent jobs are listed at `/jobs?token=$TOKEN&limit=20`; add `format=json` when a client can safely parse JSON. Cancel queued or running work with `/jobs/j-XXXXXXXX/cancel?token=$TOKEN`. The bridge runs one `cursor-agent` job at a time, queues extras, auto-cancels stale queued jobs after 30 minutes, and supersedes older queued jobs with identical args.
 
 For long or awkward argument strings, pass `b64=<base64 of cursor-agent args>` instead of `cmd`. If a job seems slow, check `/status`, then `/jobs`, then use `/emergency/clear-queue` or `/emergency/restart`.
 
