@@ -190,9 +190,26 @@ Edit `.env` to configure the server. For Telegram, set `TELEGRAM_ENABLED=true` a
 | `TELEGRAM_ENABLED` | `false` | Enable Telegram bot |
 | `TELEGRAM_BOT_TOKEN` | -- | Bot token from @BotFather |
 | `TELEGRAM_ALLOWED_USERS` | -- | Comma-separated allowed user IDs |
+| `CURSOR_BRIDGE_TOKEN` | -- | Enables token-protected `cursor-agent` HTTP bridge endpoints |
+| `CURSOR_AGENT_BIN` | `cursor-agent` | CLI binary used by the HTTP bridge |
+| `CURSOR_AGENT_BASE_ARGS` | `--model auto --trust` | Base args prepended to every bridge run |
 | `LICENSE_KEY` | -- | License key via env (overrides file) |
 | `DATA_DIR` | `./data` | Data directory for persistent state |
 | `LOG_FORMAT` | `text` | Set to `json` for structured log lines |
+
+### Cursor Agent HTTP Bridge
+
+Set `CURSOR_BRIDGE_TOKEN` to enable simple HTTP endpoints for external tools such as Grok:
+
+```bash
+BASE=http://127.0.0.1:3000
+TOKEN=your-long-random-token
+curl "$BASE/execute?token=$TOKEN&cmd=-p%20%22Reply%20with%20READY%22"
+curl "$BASE/execute_async?token=$TOKEN&cmd=-p%20%22Long%20task%22"
+curl "$BASE/jobs?token=$TOKEN"
+```
+
+For long or awkward argument strings, pass `b64=<base64 of cursor-agent args>` instead of `cmd`. If a job seems slow, check `/status`, then `/jobs`, then use `/emergency/clear-queue` or `/emergency/restart`.
 
 ### Production
 

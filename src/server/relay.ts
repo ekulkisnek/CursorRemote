@@ -10,6 +10,7 @@ import type { StateManager } from './state-manager.js';
 import type { CommandExecutor } from './command-executor.js';
 import type { CDPBridge } from './cdp-bridge.js';
 import { markdownToWebHtml, readPlanFile } from './plan-files.js';
+import { CursorAgentBridge } from './cursor-agent-bridge.js';
 import {
   WEBAPP_SESSION_COOKIE,
   createWebappSessionStore,
@@ -115,6 +116,7 @@ export class Relay {
   private stateManager: StateManager;
   private commandExecutor: CommandExecutor;
   private cdpBridge: CDPBridge;
+  private cursorAgentBridge: CursorAgentBridge;
 
   private sessionStore: WebappSessionStore;
   private loginAttempts = new Map<string, RateLimitEntry>();
@@ -137,6 +139,7 @@ export class Relay {
     this.commandExecutor = commandExecutor;
     this.cdpBridge = cdpBridge;
     this.sessionStore = createWebappSessionStore(config.dataDir);
+    this.cursorAgentBridge = new CursorAgentBridge();
 
     this.app = express();
     this.httpServer = createServer(this.app);
@@ -231,6 +234,7 @@ export class Relay {
     const clientDir = join(__dirname, '..', 'client');
 
     this.app.use(express.json());
+    this.cursorAgentBridge.register(this.app);
 
     this.app.get('/login', (_req, res) => {
       if (!this.authEnabled) return res.redirect('/');
