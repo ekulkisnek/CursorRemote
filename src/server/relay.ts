@@ -430,16 +430,26 @@ export class Relay {
         }
 
         this.commandDedup.register(fingerprint);
-        const result = await this.commandExecutor.sendMessage(
-          payload.commandId,
-          payload.text
-        );
-        if (result.ok) {
-          this.commandDedup.complete(fingerprint, result);
-        } else {
+        try {
+          const result = await this.commandExecutor.sendMessage(
+            payload.commandId,
+            payload.text
+          );
+          if (result.ok) {
+            this.commandDedup.complete(fingerprint, result);
+          } else {
+            this.commandDedup.evict(fingerprint);
+          }
+          socket.emit('command:result', result);
+        } catch (err) {
           this.commandDedup.evict(fingerprint);
+          const msg = err instanceof Error ? err.message : String(err);
+          socket.emit('command:result', {
+            commandId: payload.commandId,
+            ok: false,
+            error: msg,
+          } satisfies CommandResult);
         }
-        socket.emit('command:result', result);
       });
 
       socket.on('command:approve', async (payload: CommandPayload) => {
