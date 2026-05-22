@@ -11,6 +11,7 @@ import type { CommandExecutor } from './command-executor.js';
 import type { CDPBridge } from './cdp-bridge.js';
 import { markdownToWebHtml, readPlanFile } from './plan-files.js';
 import { CursorAgentBridge } from './cursor-agent-bridge.js';
+import { DedupCache, makeFingerprint, normalizeCommand } from './dedup.js';
 import {
   WEBAPP_SESSION_COOKIE,
   createWebappSessionStore,
@@ -117,6 +118,7 @@ export class Relay {
   private commandExecutor: CommandExecutor;
   private cdpBridge: CDPBridge;
   private cursorAgentBridge: CursorAgentBridge;
+  private commandDedup = new DedupCache();
 
   private sessionStore: WebappSessionStore;
   private loginAttempts = new Map<string, RateLimitEntry>();
@@ -173,6 +175,7 @@ export class Relay {
   }
 
   async stop(): Promise<void> {
+    this.commandDedup.destroy();
     this.io.close();
     return new Promise((resolve) => {
       this.httpServer.close(() => resolve());
@@ -408,10 +411,34 @@ export class Relay {
           return;
         }
         console.log(`[relay] Command: send_message from ${socket.id}`);
+        const fingerprint = makeFingerprint(
+          'command:send_message',
+          normalizeCommand(payload.text)
+        );
+        const duplicate = this.commandDedup.lookup(fingerprint);
+        if (duplicate) {
+          socket.emit('command:result', {
+            commandId: payload.commandId,
+            ok: true,
+            data: {
+              dedupStatus: duplicate.status,
+              jobId: duplicate.jobId,
+              ...(duplicate.status === 'completed' ? { result: duplicate.result } : {}),
+            },
+          } satisfies CommandResult);
+          return;
+        }
+
+        this.commandDedup.register(fingerprint);
         const result = await this.commandExecutor.sendMessage(
           payload.commandId,
           payload.text
         );
+        if (result.ok) {
+          this.commandDedup.complete(fingerprint, result);
+        } else {
+          this.commandDedup.evict(fingerprint);
+        }
         socket.emit('command:result', result);
       });
 
